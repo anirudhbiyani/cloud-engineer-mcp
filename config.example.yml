@@ -1,0 +1,88 @@
+# cloud-engineer-mcp configuration
+# Copy this file to config.yml and adjust for your environment.
+
+server:
+  name: "cloud-engineer-mcp"
+  version: "1.0.0"
+  transports:
+    stdio:
+      enabled: true
+    http:
+      enabled: true
+      # WARNING: The HTTP transport has no built-in authentication.
+      # Use "127.0.0.1" (default) for local-only access.
+      # Only change to "0.0.0.0" behind a reverse proxy with auth.
+      host: "127.0.0.1"
+      port: 8080
+      cors_origins: ["*"]
+
+selector:
+  model_name: "all-MiniLM-L6-v2"
+  top_k: 15
+  min_similarity: 0.15
+  cache_embeddings: true
+  embedding_cache_path: ".cloud-engineer-mcp/embeddings_cache.npz"
+  context_max_tokens: 512
+
+# Auto-discovery scans your machine for configured cloud profiles/subscriptions/projects
+# and generates one backend MCP server subprocess per account.
+#
+# AWS: Reads ~/.aws/config to find profiles (no credentials needed for discovery).
+# Azure: Runs `az account list` to find subscriptions.
+# GCP: Runs `gcloud projects list` to find projects. A single GCP backend is created
+#       that covers all discovered projects. The default project is set from the first
+#       discovered project; use `gcloud config set project <id>` to change it, or use
+#       the `set_context` tool to scope tools to GCP.
+#
+# Set enabled: false for any provider you don't use. If a provider is enabled but
+# its CLI is not installed or not authenticated, startup may be slow or fail.
+#
+# Use exclude_profiles / exclude_subscriptions / exclude_projects to skip specific accounts.
+discovery:
+  enabled: true
+  aws:
+    enabled: true
+    default_region: "us-east-1"
+    mcp_server: "awslabs.ccapi-mcp-server@latest"
+    exclude_profiles: []
+    startup_timeout_seconds: 60
+  azure:
+    enabled: true
+    mcp_command: "npx -y @azure/mcp@latest server start"
+    exclude_subscriptions: []
+    startup_timeout_seconds: 60
+  gcp:
+    enabled: true
+    mcp_server: "@google-cloud/gcloud-mcp@latest"
+    exclude_projects: []
+    startup_timeout_seconds: 60
+
+# Manual backends override discovered ones on name collision.
+# Use this to add backends that can't be auto-discovered, or to override
+# settings for a specific discovered account.
+#
+# Example:
+#   backends:
+#     aws_ccapi_production:
+#       display_name: "AWS Prod (custom)"
+#       command: "uvx"
+#       args: ["awslabs.ccapi-mcp-server@latest"]
+#       env:
+#         AWS_PROFILE: "production"
+#         AWS_REGION: "eu-west-1"
+#       enabled: true
+backends: {}
+
+logging:
+  level: "INFO"
+  format: "json"
+  file: null
+
+health:
+  enabled: true
+  endpoint: "/health"
+  include_backends: true
+
+rate_limit:
+  enabled: true
+  requests_per_minute: 100

@@ -1,0 +1,18 @@
+services:
+  cloud-engineer-mcp:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config.yml:/app/config.yml:ro
+      - ~/.aws:/root/.aws:ro
+      - ~/.azure:/root/.azure:ro
+      - ~/.config/gcloud:/root/.config/gcloud:ro
+      - cloud-engineer-mcp-cache:/app/.cloud-engineer-mcp
+    environment:
+      - LOG_LEVEL=INFO
+      - CLOUD_ENGINEER_MCP_CONFIG=/app/config.yml
+    restart: unless-stopped
+
+volumes:
+  cloud-engineer-mcp-cache:

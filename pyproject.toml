@@ -1,0 +1,56 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cloud-engineer-mcp"
+version = "1.0.0"
+description = "Unified Multi-Cloud MCP Gateway Server"
+readme = "README.md"
+requires-python = ">=3.14"
+license = "MIT"
+dependencies = [
+    "mcp>=1.27.0",
+    "sentence-transformers>=3.4.0",
+    "numpy>=2.2.0",
+    "pyyaml>=6.0",
+    "pydantic>=2.10.0",
+    "structlog>=24.4.0",
+    "uvicorn>=0.34.0",
+    "starlette>=0.45.0",
+    "click>=8.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0",
+    "pytest-timeout>=2.3.0",
+    "ruff>=0.8.0",
+    "mypy>=1.14.0",
+]
+all = ["cloud-engineer-mcp[dev]"]
+
+[project.scripts]
+cloud-engineer-mcp = "cloud_engineer_mcp.cli:cli"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.basedpyright]
+extraPaths = ["src"]
+venvPath = "."
+venv = ".venv"

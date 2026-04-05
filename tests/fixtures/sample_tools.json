@@ -1,0 +1,89 @@
+[
+  {
+    "name": "create_resource",
+    "description": "Create a new cloud resource using the Cloud Control API",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "type_name": {"type": "string"},
+        "desired_state": {"type": "object"}
+      },
+      "required": ["type_name", "desired_state"]
+    }
+  },
+  {
+    "name": "get_resource",
+    "description": "Get details of an existing cloud resource",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "type_name": {"type": "string"},
+        "identifier": {"type": "string"}
+      },
+      "required": ["type_name", "identifier"]
+    }
+  },
+  {
+    "name": "list_resources",
+    "description": "List all cloud resources of a given type",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "type_name": {"type": "string"}
+      },
+      "required": ["type_name"]
+    }
+  },
+  {
+    "name": "list_buckets",
+    "description": "List all S3 buckets in the account",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "get_object",
+    "description": "Retrieve an object from an S3 bucket",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "bucket": {"type": "string"},
+        "key": {"type": "string"}
+      },
+      "required": ["bucket", "key"]
+    }
+  },
+  {
+    "name": "put_object",
+    "description": "Upload an object to an S3 bucket",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "bucket": {"type": "string"},
+        "key": {"type": "string"},
+        "body": {"type": "string"}
+      },
+      "required": ["bucket", "key", "body"]
+    }
+  },
+  {
+    "name": "list_storage_accounts",
+    "description": "List all Azure storage accounts",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "list_instances",
+    "description": "List all Google Cloud Compute Engine instances",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": {"type": "string"},
+        "zone": {"type": "string"}
+      }
+    }
+  }
+]
