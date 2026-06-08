@@ -37,6 +37,15 @@ jobs:
   pypi-publish:
     name: Publish to PyPI
     needs: build
+    # Dormant until PyPI publishing is set up. To enable:
+    #   1. Register a Trusted Publisher (or pending publisher) on PyPI at
+    #      https://pypi.org/manage/account/publishing/ for repo
+    #      anirudhbiyani/cloud-engineer-mcp, workflow release.yml, environment pypi.
+    #   2. Create repository variable PUBLISH_TO_PYPI=true
+    #      (Settings → Secrets and variables → Actions → Variables).
+    # Until then this job is skipped so release runs don't fail on the OIDC
+    # exchange (invalid-publisher).
+    if: vars.PUBLISH_TO_PYPI == 'true'
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -104,6 +113,13 @@ jobs:
   github-release:
     name: Create GitHub Release
     needs: [pypi-publish, docker]
+    # Run once docker succeeds and pypi-publish either succeeded or was skipped
+    # (skipped is the normal case while PyPI publishing is dormant). Still blocks
+    # if a job actually fails.
+    if: >-
+      always() &&
+      needs.docker.result == 'success' &&
+      (needs.pypi-publish.result == 'success' || needs.pypi-publish.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
       contents: write

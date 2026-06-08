@@ -22,10 +22,14 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
 RUN uv pip install --system --no-cache sentence-transformers && \
     python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
 
-# Install cloud-engineer-mcp
-COPY pyproject.toml .
+# Install cloud-engineer-mcp (runtime + optional OpenTelemetry tracing only;
+# dev tooling like ruff/mypy/pytest is intentionally excluded from the image).
+# README.md and LICENSE are required by the build backend: pyproject.toml
+# declares `readme = "README.md"` and `license-files = ["LICENSE"]`, so they
+# must be present when hatchling builds the wheel.
+COPY pyproject.toml README.md LICENSE ./
 COPY src/ src/
-RUN uv pip install --system --no-cache -e ".[all]"
+RUN uv pip install --system --no-cache ".[otel]"
 
 # Default config
 COPY config.example.yml config.yml
