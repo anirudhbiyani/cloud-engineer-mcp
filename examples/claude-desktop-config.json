@@ -1,0 +1,15 @@
+{
+  "_comment": "Drop this into ~/Library/Application Support/Claude/claude_desktop_config.json (macOS) or %APPDATA%\\Claude\\claude_desktop_config.json (Windows). Edit the absolute path to your config.yml.",
+  "mcpServers": {
+    "cloud-engineer-mcp": {
+      "command": "cloud-engineer-mcp",
+      "args": [
+        "serve",
+        "--config",
+        "/ABSOLUTE/PATH/TO/config.yml",
+        "--transport",
+        "stdio"
+      ]
+    }
+  }
+}

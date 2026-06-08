@@ -53,4 +53,5 @@ def configure_logging(level: str = "INFO", fmt: str = "json", log_file: str | No
 
 def get_logger(component: str) -> structlog.stdlib.BoundLogger:
     """Get a logger bound with the component name."""
-    return structlog.get_logger(component=component)
+    logger: structlog.stdlib.BoundLogger = structlog.get_logger(component=component)
+    return logger

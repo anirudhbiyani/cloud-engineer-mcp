@@ -1,146 +1,199 @@
+<div align="center">
+
 # cloud-engineer-mcp
 
-**Unified Multi-Cloud MCP Gateway Server**
+**One MCP endpoint for AWS, Azure, and GCP — without context bloat.**
 
-cloud-engineer-mcp is a gateway MCP (Model Context Protocol) server that unifies official AWS, Azure, and GCP MCP servers behind a single interface. It uses embedding-based semantic similarity to automatically surface only the most relevant tools for each conversation, eliminating context bloat from hundreds of cloud tools.
+[![CI](https://github.com/cloud-engineer-mcp/cloud-engineer-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/cloud-engineer-mcp/cloud-engineer-mcp/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+[![MCP](https://img.shields.io/badge/MCP-compatible-7c3aed.svg)](https://modelcontextprotocol.io)
 
-## Features
+</div>
 
-- **Multi-cloud unification** -- AWS, Azure, and GCP tools behind one MCP endpoint
-- **Smart tool selection** -- Embedding-based semantic search returns only relevant tools (top-K)
-- **Dual transport** -- stdio (for IDEs like Cursor/VS Code) and Streamable HTTP (for remote deployments)
-- **Session-aware** -- Conversation context and tool pinning for consistent workflows
-- **Auto-recovery** -- Backend crash detection and automatic restart
-- **Zero LLM cost** -- Local sentence-transformer model for tool selection (no API calls)
+`cloud-engineer-mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) gateway. It fans your agent's
+requests out to the official AWS, Azure, and Google Cloud MCP servers, then uses a local sentence-transformer
+to return only the handful of tools relevant to the current task — typically 15 out of 600–900.
 
-## Prerequisites
+> Stop drowning your agent in cloud tools. Surface the 15 it actually needs.
 
-- **Python 3.14+**
-- **Node.js 20+** and **npm** -- required for Azure and GCP backends (installed via `npx`)
-- **uv** ([astral.sh/uv](https://astral.sh/uv)) -- required for AWS backends (installed via `uvx`)
+## The problem
 
-You only need the tools for the cloud providers you plan to use:
+Plug the official AWS, Azure, and GCP MCP servers into Cursor or Claude Desktop and your agent sees
+~800 tool definitions every turn. That's 10–15K tokens of context burned before the user has typed anything,
+worse tool-selection accuracy, and noticeable latency on every `tools/list` call.
 
-| Provider | Required CLI | Backend runner |
-|----------|-------------|----------------|
-| AWS | `aws` CLI v2 | `uvx` (from `uv`) |
-| Azure | `az` CLI | `npx` (from Node.js) |
-| GCP | `gcloud` CLI | `npx` (from Node.js) |
+## What this does
 
-## Quick Start
+- **Auto-discovers** every AWS profile in `~/.aws/config`, every Azure subscription via `az account list`, and every GCP project via `gcloud projects list`.
+- **Starts one subprocess per account** against the official cloud MCP servers (`awslabs.ccapi-mcp-server`, `@azure/mcp`, `@google-cloud/gcloud-mcp`).
+- **Indexes every tool description** with a local `all-MiniLM-L6-v2` model (22M params, ~80MB on disk, ~5ms per query, no API calls).
+- **Returns the top-K tools** for the current conversation via a `set_context` tool. Pin recently-used backends so workflows stay coherent.
+- **Speaks both transports**: stdio for IDEs (Cursor, VS Code, Claude Desktop) and Streamable HTTP for remote/team deployments.
 
-### Installation
+<!-- demo.gif -->
+
+## Try it in 60 seconds (no cloud credentials needed)
 
 ```bash
-pip install -e ".[dev]"
+git clone https://github.com/cloud-engineer-mcp/cloud-engineer-mcp.git
+cd cloud-engineer-mcp
+uv sync
+uv run cloud-engineer-mcp demo
 ```
 
-### Configuration
+The `demo` subcommand boots a self-contained gateway against bundled mock backends. No AWS/Azure/GCP setup
+required. It's the same code path the real gateway uses — useful for evaluating the project, integrating into
+CI, or rehearsing a conference demo.
 
-Copy and edit the example config:
+## Use it for real
+
+Authenticate any cloud CLIs you'd like the gateway to discover (you only need the ones you use):
+
+```bash
+aws sso login --profile <profile>      # or aws configure
+az login
+gcloud auth login && gcloud config set project <project>
+```
+
+Then install (see [Installation](#installation) below) and register with your IDE:
+
+```bash
+uv run cloud-engineer-mcp install-backends     # pre-download AWS/Azure/GCP MCP packages (optional but recommended)
+uv run cloud-engineer-mcp cursor-install       # or claude-desktop-install
+```
+
+Restart Cursor. Ask it _"deploy an S3 bucket with versioning"_ and watch `tools/list` surface only the relevant
+S3 tools from your AWS profile — even though the gateway is indexing tools across all three clouds.
+
+## How tool selection works
+
+1. The agent calls `set_context("I need to deploy an S3 bucket with versioning")`.
+2. The gateway encodes the context with the local sentence-transformer.
+3. On the next `tools/list` it computes cosine similarity against every backend tool description and returns the top-K.
+4. When the agent calls a tool from backend B, every tool in B gets a score boost (a "pin") that decays over the next few turns — so workflows that need 3–4 related tools stay coherent.
+5. Embeddings are cached to disk between restarts (`.cloud-engineer-mcp/embeddings_cache.npz`).
+
+No LLM calls. No re-indexing. ~5ms p99 per selection.
+
+## Architecture
+
+```
+   MCP Clients (Cursor, VS Code, Claude Desktop, HTTP)
+                            │
+                            ▼
+   ┌─────────────────────────────────────────────────┐
+   │  cloud-engineer-mcp gateway                     │
+   │   ├─ Tool selector  (local embeddings)          │
+   │   ├─ Tool registry  (namespaced: aws__create)   │
+   │   ├─ Session state  (context + pinning)         │
+   │   └─ Backend manager (subprocess lifecycle)     │
+   └─────────────────────────────────────────────────┘
+       │              │              │           │
+       ▼              ▼              ▼           ▼
+   AWS MCP        Azure MCP      GCP MCP    your backends
+   (per profile)  (per sub)      (per proj) (config.yml)
+```
+
+More in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Stability
+
+`cloud-engineer-mcp` is **beta**. The stdio transport is production-grade and stable. The HTTP transport, demo
+subcommand, and metrics format may change in 1.x. Selector behavior (top-K, pinning) is tunable but the public
+interface (`set_context`, namespaced tool names) is stable. See [CHANGELOG.md](CHANGELOG.md) for breaking changes.
+
+## Installation
+
+> **Note:** `cloud-engineer-mcp` is not yet published to PyPI. Install from source as shown below.
+
+### From source
+
+Install [`uv`](https://docs.astral.sh/uv/) if you don't have it, then:
+
+```bash
+git clone https://github.com/cloud-engineer-mcp/cloud-engineer-mcp.git
+cd cloud-engineer-mcp
+uv sync                   # add --extra dev if you plan to contribute
+```
+
+`uv sync` creates a managed virtualenv in `.venv` and installs the project. Prefix commands with
+`uv run` (e.g. `uv run cloud-engineer-mcp demo`) or activate the venv with `source .venv/bin/activate`.
+
+### Prerequisites
+
+- Python **3.12+**
+- [`uv`](https://docs.astral.sh/uv/) — used to install and run the gateway (and provides `uvx` for AWS backends)
+- For AWS backends: the `aws` CLI v2
+- For Azure backends: Node.js 20+ and the `az` CLI
+- For GCP backends: Node.js 20+ and the `gcloud` CLI
+
+You only need the tools for clouds you plan to use. The gateway gracefully skips providers whose CLI is missing.
+
+## Configuration
+
+Copy the example and adjust:
 
 ```bash
 cp config.example.yml config.yml
-# Edit config.yml to enable/disable cloud providers
+$EDITOR config.yml
 ```
 
-**Disable providers you don't use.** If a provider is enabled but its CLI is not installed or not authenticated, the server startup will be slow or may fail. Set `enabled: false` for any provider you don't need:
+Key settings:
 
-```yaml
-discovery:
-  aws:
-    enabled: false   # disable if you don't use AWS
-  azure:
-    enabled: true
-  gcp:
-    enabled: false   # disable if you don't use GCP
+| Setting | Default | Description |
+|---|---|---|
+| `selector.top_k` | `15` | Max tools returned per `tools/list` |
+| `selector.model_name` | `all-MiniLM-L6-v2` | Sentence-transformer model |
+| `selector.min_similarity` | `0.15` | Floor cosine similarity for inclusion |
+| `selector.cache_embeddings` | `true` | Persist embeddings between restarts |
+| `discovery.{aws,azure,gcp}.enabled` | `true` | Per-provider auto-discovery |
+| `server.transports.http.host` | `127.0.0.1` | HTTP bind address (**leave loopback by default**) |
+| `server.transports.http.port` | `8080` | HTTP port |
+| `rate_limit.requests_per_minute` | `100` | Per-IP token bucket |
+
+See [`config.example.yml`](config.example.yml) and [docs/FAQ.md](docs/FAQ.md) for the full reference.
+
+## CLI
+
+Prefix each command with `uv run` (shown below), or activate the venv (`source .venv/bin/activate`) and drop the prefix.
+
+```
+uv run cloud-engineer-mcp demo                 # mock backends, no cloud setup
+uv run cloud-engineer-mcp serve --transport stdio
+uv run cloud-engineer-mcp serve --transport http
+uv run cloud-engineer-mcp serve --transport both
+uv run cloud-engineer-mcp check                # validate config
+uv run cloud-engineer-mcp discover             # preview auto-discovered accounts
+uv run cloud-engineer-mcp list-tools           # list every tool exposed
+uv run cloud-engineer-mcp install-backends     # pre-download AWS/Azure/GCP MCP packages
+uv run cloud-engineer-mcp cursor-install       # register in .cursor/mcp.json
 ```
 
-### Cloud Provider Authentication
-
-Before starting the server, authenticate with the cloud providers you plan to use:
-
-**AWS:**
-```bash
-# SSO-based authentication
-aws sso login --profile <your-profile>
-
-# Or configure access keys
-aws configure --profile <your-profile>
-```
-
-**Azure:**
-```bash
-az login
-```
-
-**GCP:**
-```bash
-gcloud auth login
-gcloud config set project <your-project-id>
-```
-
-### Running
-
-```bash
-# stdio transport (for IDE integration)
-cloud-engineer-mcp serve --transport stdio
-
-# HTTP transport (for remote/API access)
-cloud-engineer-mcp serve --transport http
-
-# Both transports
-cloud-engineer-mcp serve --transport both
-```
-
-### Validate Config
-
-```bash
-cloud-engineer-mcp check
-```
-
-### Preview Discovered Accounts
-
-```bash
-cloud-engineer-mcp discover
-```
-
-### List All Tools
-
-```bash
-cloud-engineer-mcp list-tools
-```
-
-### Pre-install Backends (Optional)
-
-For faster startup, pre-install the backend MCP server packages:
-
-```bash
-cloud-engineer-mcp install-backends
-```
-
-## IDE Integration
+## IDE integration
 
 ### Cursor / VS Code
 
-Run the auto-installer:
-
 ```bash
-cloud-engineer-mcp cursor-install --config /path/to/config.yml
+uv run cloud-engineer-mcp cursor-install
 ```
 
-Or manually add to `.cursor/mcp.json`:
+Or manually drop into `.cursor/mcp.json` (template: [`examples/cursor-config.json`](examples/cursor-config.json)):
 
 ```json
 {
   "mcpServers": {
     "cloud-engineer-mcp": {
-      "command": "python",
-      "args": ["-m", "cloud_engineer_mcp", "serve", "--config", "/path/to/config.yml", "--transport", "stdio"]
+      "command": "cloud-engineer-mcp",
+      "args": ["serve", "--config", "/abs/path/to/config.yml", "--transport", "stdio"]
     }
   }
 }
 ```
+
+### Claude Desktop
+
+See [`examples/claude-desktop-config.json`](examples/claude-desktop-config.json).
 
 ### Remote HTTP
 
@@ -148,65 +201,17 @@ Or manually add to `.cursor/mcp.json`:
 {
   "mcpServers": {
     "cloud-engineer-mcp": {
-      "url": "http://localhost:8080/mcp",
-      "transport": "streamable-http"
+      "url": "https://your-gateway.example.com/mcp",
+      "transport": "streamable-http",
+      "headers": { "Authorization": "Bearer <your-token>" }
     }
   }
 }
 ```
 
-> **Security warning:** The HTTP transport has no built-in authentication. By default it binds to `127.0.0.1` (localhost only). If you need remote access, place it behind a reverse proxy with authentication. Never expose the HTTP endpoint directly to the public internet.
-
-## How Tool Selection Works
-
-1. The AI agent calls `set_context("I need to deploy an S3 bucket with versioning")`
-2. cloud-engineer-mcp encodes this context using a local sentence-transformer model
-3. On the next `tools/list`, cloud-engineer-mcp computes cosine similarity between the context and all tool descriptions
-4. Only the top-K most relevant tools are returned (default: 15)
-5. When a tool is called, tools from the same backend get a score boost ("pinning") so related tools stay available
-
-## Architecture
-
-```
-MCP Clients (Cursor, VS Code, HTTP)
-        │
-        ▼
-┌─────────────────────────────┐
-│  cloud-engineer-mcp Gateway │
-│                             │
-│  Tool Selector (embeddings) │
-│  Tool Registry (namespaced) │
-│  Session Manager            │
-│  Backend Manager            │
-└──┬──────────┬──────────┬────┘
-   │          │          │
-   ▼          ▼          ▼
-AWS MCP    Azure MCP   GCP MCP
-(subprocess) (subprocess) (subprocess)
-```
-
-### How Discovery Works
-
-On startup, cloud-engineer-mcp scans your machine for configured cloud accounts:
-
-- **AWS**: Parses `~/.aws/config` to find all configured profiles
-- **Azure**: Runs `az account list` to find enabled subscriptions
-- **GCP**: Runs `gcloud projects list` to find active projects
-
-Each discovered account becomes a backend MCP server subprocess. AWS creates one backend per profile, Azure creates one per subscription, and GCP creates a single backend that covers all projects (the GCP MCP server handles multi-project routing internally).
-
-### GCP Note
-
-GCP uses a single backend for all discovered projects. The default project is set from the first discovered project. To work with a specific project, use `gcloud config set project <id>` before starting the server, or use `set_context` to scope the conversation.
-
-## Environment Variables
-
-All CLI options can also be set via environment variables:
-
-| Variable | CLI Option | Description |
-|----------|-----------|-------------|
-| `CLOUD_ENGINEER_MCP_CONFIG` | `--config` | Path to config file |
-| `LOG_LEVEL` | `--log-level` | Log level (DEBUG, INFO, WARNING, ERROR) |
+⚠ **Always set `CLOUD_ENGINEER_MCP_AUTH_TOKEN` and put the gateway behind TLS** when exposing HTTP off
+localhost. The gateway holds delegated cloud credentials; treat it like the keys to your cloud account because
+that's effectively what it is. See [SECURITY.md](SECURITY.md).
 
 ## Docker
 
@@ -214,65 +219,36 @@ All CLI options can also be set via environment variables:
 docker compose up -d
 ```
 
-The Docker setup mounts your local cloud credentials read-only:
+The compose file mounts `~/.aws`, `~/.azure`, and `~/.config/gcloud` **read-only**. The container binds to
+`127.0.0.1` by default; export with explicit auth and TLS.
 
-- `~/.aws` for AWS
-- `~/.azure` for Azure
-- `~/.config/gcloud` for GCP
+## Observability
 
-> **Security warning:** The Docker image binds to `0.0.0.0` inside the container to allow port mapping. If you publish the port, ensure the host firewall or a reverse proxy restricts access.
+- `/livez` — process up (always 200).
+- `/readyz` — at least one backend READY and embedding model loaded.
+- `/metrics` — JSON or Prometheus text format via `Accept` header.
+- Structured JSON logs to stderr (set `logging.format: console` for dev).
 
-## Testing
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for log fields and metric names.
 
-```bash
-# Unit tests
-pytest tests/unit/ -v
+## Why AGPL-3.0?
 
-# Integration tests (starts mock backends)
-pytest tests/integration/ -v --timeout=60
-
-# All tests with coverage
-pytest --cov=cloud_engineer_mcp --cov-report=html
-```
-
-## Configuration Reference
-
-See `config.example.yml` for all available options. Key settings:
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `selector.model_name` | `all-MiniLM-L6-v2` | Sentence-transformer model for embeddings |
-| `selector.top_k` | `15` | Max tools returned per `tools/list` |
-| `selector.min_similarity` | `0.15` | Floor threshold for tool similarity |
-| `selector.cache_embeddings` | `true` | Cache embeddings to disk for faster restarts |
-| `discovery.enabled` | `true` | Enable auto-discovery of cloud accounts |
-| `server.transports.http.host` | `127.0.0.1` | HTTP bind address |
-| `server.transports.http.port` | `8080` | HTTP port |
-
-## Troubleshooting
-
-**"CLI not found" for a provider**
-Install the missing CLI tool (`aws`, `az`, or `gcloud`), or set `enabled: false` for that provider in `config.yml`.
-
-**"Credentials invalid" on startup**
-Run the appropriate login command for your provider (see [Cloud Provider Authentication](#cloud-provider-authentication) above).
-
-**Startup is slow**
-Backend MCP servers are downloaded on first use via `uvx`/`npx`. Run `cloud-engineer-mcp install-backends` to pre-install them for instant startup.
-
-**"API not enabled" errors (GCP)**
-The GCP MCP server may require specific APIs to be enabled in your project. Enable them via the Google Cloud Console or `gcloud services enable <api>`.
-
-**Too many/few tools returned**
-Adjust `selector.top_k` in your config. Use `set_context` with `cloud_providers` to filter by provider.
+`cloud-engineer-mcp` is licensed under [AGPL-3.0-or-later](LICENSE). If you deploy it as a network service,
+the network-use clause applies: improvements and modifications you ship should be made available under
+the same license. We chose AGPL deliberately so the project remains a healthy open commons and forks
+benefit everyone. Internal use, agent integration, and use behind an authenticated boundary are all fine.
+If AGPL doesn't fit your needs, get in touch via [discussions](https://github.com/cloud-engineer-mcp/cloud-engineer-mcp/discussions).
 
 ## Contributing
 
-Contributions are welcome! Please:
+We welcome contributions. See [CONTRIBUTING.md](CONTRIBUTING.md). Good first issues are tagged
+[`good first issue`](https://github.com/cloud-engineer-mcp/cloud-engineer-mcp/labels/good%20first%20issue).
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/my-feature`)
-3. Make your changes with tests
-4. Run the test suite (`pytest`)
-5. Run the linter (`ruff check . && ruff format --check .`)
-6. Submit a pull request
+## Security
+
+Report vulnerabilities privately per [SECURITY.md](SECURITY.md). Please do not open public issues for
+security-sensitive problems.
+
+## License
+
+[AGPL-3.0-or-later](LICENSE) © cloud-engineer-mcp contributors.

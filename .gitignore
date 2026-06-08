@@ -32,3 +32,6 @@ config.yml
 
 # macOS
 .DS_Store
+
+# Deck
+deck/

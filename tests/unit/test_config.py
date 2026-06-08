@@ -7,8 +7,9 @@ from pathlib import Path
 
 import pytest
 import yaml
+from pydantic import ValidationError
 
-from cloud_engineer_mcp.config import CloudEngineerConfig
+from cloud_engineer_mcp.config import BackendConfig, CloudEngineerConfig
 
 
 def _write_yaml(tmp_path: Path, data: dict) -> Path:
@@ -130,3 +131,45 @@ class TestCloudEngineerConfig:
         assert cfg.server.transports.stdio.enabled is False
         assert cfg.server.transports.http.port == 9090
         assert cfg.server.transports.http.host == "127.0.0.1"
+
+
+class TestBackendUrlValidation:
+    def test_empty_url_allowed_for_stdio(self) -> None:
+        b = BackendConfig(display_name="Stdio", command="echo")
+        assert b.url == ""
+
+    @pytest.mark.parametrize(
+        "url",
+        ["https://mcp.example.com/mcp", "http://127.0.0.1:9000/mcp"],
+    )
+    def test_http_and_https_allowed(self, url: str) -> None:
+        b = BackendConfig(display_name="Remote", transport="http", url=url)
+        assert b.url == url
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "file:///etc/passwd",
+            "ftp://internal/secrets",
+            "gopher://10.0.0.1",
+            "/etc/passwd",
+            "https://",
+        ],
+    )
+    def test_dangerous_schemes_rejected(self, url: str) -> None:
+        with pytest.raises(ValidationError):
+            BackendConfig(display_name="Bad", transport="http", url=url)
+
+    def test_rejected_via_yaml_load(self, tmp_path: Path) -> None:
+        data = {
+            "backends": {
+                "evil": {
+                    "display_name": "Evil",
+                    "transport": "http",
+                    "url": "file:///etc/passwd",
+                }
+            }
+        }
+        path = _write_yaml(tmp_path, data)
+        with pytest.raises(ValidationError):
+            CloudEngineerConfig.from_yaml(path)

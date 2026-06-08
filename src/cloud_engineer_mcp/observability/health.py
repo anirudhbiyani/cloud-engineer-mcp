@@ -11,7 +11,7 @@ from starlette.responses import JSONResponse
 if TYPE_CHECKING:
     from cloud_engineer_mcp.backends.manager import BackendManager
     from cloud_engineer_mcp.config import CloudEngineerConfig
-    from cloud_engineer_mcp.selector.index import ToolIndex
+    from cloud_engineer_mcp.selector.backend import SelectorBackend
     from cloud_engineer_mcp.session.sessions import SessionManager
 
 
@@ -20,7 +20,7 @@ class HealthCheck:
         self,
         config: CloudEngineerConfig,
         backend_manager: BackendManager,
-        tool_index: ToolIndex,
+        tool_index: SelectorBackend,
         session_manager: SessionManager,
         start_time: float | None = None,
     ) -> None:
@@ -34,7 +34,7 @@ class HealthCheck:
         now = time.time()
         uptime = now - self._start_time
 
-        backends_status: dict[str, dict] = {}
+        backends_status: dict[str, dict[str, object]] = {}
         any_healthy = False
 
         if self._config.health.include_backends:
@@ -47,17 +47,8 @@ class HealthCheck:
                 backends_status[bid] = entry
         else:
             any_healthy = any(
-                bp.status.value == "ready"
-                for bp in self._backend_manager.backends.values()
+                bp.status.value == "ready" for bp in self._backend_manager.backends.values()
             )
-
-        from cloud_engineer_mcp.selector.engine import EmbeddingEngine
-
-        engine_loaded = (
-            self._tool_index._engine.is_loaded
-            if isinstance(self._tool_index._engine, EmbeddingEngine)
-            else False
-        )
 
         body = {
             "status": "healthy" if any_healthy else "degraded",
@@ -65,7 +56,7 @@ class HealthCheck:
             "uptime_seconds": round(uptime, 1),
             "backends": backends_status,
             "selector": {
-                "model_loaded": engine_loaded,
+                "model_loaded": self._tool_index.is_loaded,
                 "total_tools_indexed": self._tool_index.size,
                 "model_name": self._config.selector.model_name,
             },

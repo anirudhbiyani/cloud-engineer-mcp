@@ -19,13 +19,13 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
     && ln -s /root/.local/bin/uvx /usr/local/bin/uvx
 
 # Pre-download the embedding model
-RUN pip install --no-cache-dir sentence-transformers && \
+RUN uv pip install --system --no-cache sentence-transformers && \
     python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
 
 # Install cloud-engineer-mcp
 COPY pyproject.toml .
 COPY src/ src/
-RUN pip install --no-cache-dir -e ".[all]"
+RUN uv pip install --system --no-cache -e ".[all]"
 
 # Default config
 COPY config.example.yml config.yml

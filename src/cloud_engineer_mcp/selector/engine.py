@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections import OrderedDict
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -21,7 +22,8 @@ class EmbeddingEngine:
         model_name: str = "all-MiniLM-L6-v2",
         query_cache_size: int = DEFAULT_CACHE_SIZE,
     ) -> None:
-        self._model: object | None = None
+        # SentenceTransformer is untyped; treat the model as Any inside this class.
+        self._model: Any = None
         self._model_name = model_name
         self._dimension: int = 0
         self._query_cache: OrderedDict[str, NDArray[np.float32]] = OrderedDict()
@@ -55,7 +57,8 @@ class EmbeddingEngine:
         if self._model is None:
             raise RuntimeError("Model not loaded. Call load() first.")
         vectors = self._model.encode(texts, normalize_embeddings=True)
-        return np.array(vectors, dtype=np.float32)
+        arr: NDArray[np.float32] = np.array(vectors, dtype=np.float32)
+        return arr
 
     def encode_single(self, text: str) -> NDArray[np.float32]:
         """Encode a single text with LRU caching. Returns shape (dim,)."""
@@ -64,7 +67,7 @@ class EmbeddingEngine:
             self._query_cache.move_to_end(text)
             return cached
 
-        vec = self.encode([text])[0]
+        vec: NDArray[np.float32] = self.encode([text])[0]
         self._query_cache[text] = vec
         if len(self._query_cache) > self._cache_size:
             self._query_cache.popitem(last=False)
@@ -78,7 +81,7 @@ class EmbeddingEngine:
             return cached
 
         loop = asyncio.get_event_loop()
-        vec = await loop.run_in_executor(None, lambda: self.encode([text])[0])
+        vec: NDArray[np.float32] = await loop.run_in_executor(None, lambda: self.encode([text])[0])
         self._query_cache[text] = vec
         if len(self._query_cache) > self._cache_size:
             self._query_cache.popitem(last=False)

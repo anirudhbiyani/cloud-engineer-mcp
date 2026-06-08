@@ -88,3 +88,57 @@ class TestSessionManager:
         mgr.get_or_create("a")
         mgr.get_or_create("b")
         assert mgr.active_count == 2
+
+
+class TestSessionPersistence:
+    def test_save_and_load_roundtrip(self, tmp_path) -> None:
+        persist = tmp_path / "sessions.json"
+        mgr1 = SessionManager(persist_path=str(persist))
+        s = mgr1.get_or_create("conf-demo")
+        s.set_context("create an S3 bucket", ["aws"], action="create", resource_type="s3 bucket")
+        s.record_tool_call("aws__create_resource")
+        s.pin_backend_tools(["aws__create_resource", "aws__describe_resource"])
+        mgr1._save_to_disk()
+
+        mgr2 = SessionManager(persist_path=str(persist))
+        loaded = mgr2.get_or_create("conf-demo")
+        assert loaded.context == "create an S3 bucket"
+        assert loaded.cloud_providers == ["aws"]
+        assert loaded.action == "create"
+        assert loaded.resource_type == "s3 bucket"
+        assert "aws__create_resource" in loaded.tool_call_history
+        assert loaded.pinned_tools == {
+            "aws__create_resource": 3,
+            "aws__describe_resource": 3,
+        }
+
+    def test_expired_sessions_dropped_on_load(self, tmp_path) -> None:
+        import time as time_mod
+
+        persist = tmp_path / "sessions.json"
+        # Write a session with an ancient last_active timestamp.
+        ancient = time_mod.time() - 10_000
+        persist.write_text(
+            '{"old": {"session_id": "old", "created_at": 0, "last_active": '
+            + str(ancient)
+            + ', "conversation_messages": [], "tool_call_history": [], '
+            + '"pinned_tools": {}, "context": null, "cloud_providers": null, '
+            + '"action": null, "resource_type": null}}'
+        )
+        mgr = SessionManager(ttl_seconds=60, persist_path=str(persist))
+        assert mgr.active_count == 0
+
+    def test_load_corrupt_json_is_safe(self, tmp_path) -> None:
+        persist = tmp_path / "sessions.json"
+        persist.write_text("{ not json")
+        mgr = SessionManager(persist_path=str(persist))
+        assert mgr.active_count == 0  # Skipped corrupt file gracefully.
+
+    def test_save_is_atomic(self, tmp_path) -> None:
+        persist = tmp_path / "sessions.json"
+        mgr = SessionManager(persist_path=str(persist))
+        mgr.get_or_create("a")
+        mgr._save_to_disk()
+        # The .tmp file should not remain on disk.
+        assert not (tmp_path / "sessions.json.tmp").exists()
+        assert persist.exists()

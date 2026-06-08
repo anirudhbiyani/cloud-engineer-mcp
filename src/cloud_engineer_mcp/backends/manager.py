@@ -108,9 +108,16 @@ class BackendManager:
             )
 
     async def route_tool_call(
-        self, namespaced_name: str, arguments: dict[str, Any]
+        self,
+        namespaced_name: str,
+        arguments: dict[str, Any],
+        progress_callback: Any | None = None,
     ) -> CallToolResult:
-        """Route a namespaced tool call to the correct backend."""
+        """Route a namespaced tool call to the correct backend.
+
+        Forwards `progress_callback` so backend progress notifications can
+        bubble up to the gateway client.
+        """
         ref = self._registry.lookup(namespaced_name)
         if ref is None:
             raise ToolNotFoundError(namespaced_name)
@@ -122,7 +129,11 @@ class BackendManager:
         if bp is None:
             raise ToolNotFoundError(namespaced_name)
 
-        return await bp.call_tool(original_name, arguments)
+        return await bp.call_tool(
+            original_name,
+            arguments,
+            progress_callback=progress_callback,
+        )
 
     async def stop_all(self) -> None:
         """Stop all backends and cancel health monitors."""

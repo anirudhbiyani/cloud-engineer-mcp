@@ -198,9 +198,7 @@ class TestDiscoverAzureSubscriptions:
         mock_proc.returncode = 0
 
         with (
-            patch(
-                "cloud_engineer_mcp.discovery.shutil.which", return_value="/usr/bin/az"
-            ),
+            patch("cloud_engineer_mcp.discovery.shutil.which", return_value="/usr/bin/az"),
             patch(
                 "cloud_engineer_mcp.discovery.asyncio.create_subprocess_exec",
                 return_value=mock_proc,
@@ -220,9 +218,7 @@ class TestDiscoverAzureSubscriptions:
         mock_proc.returncode = 0
 
         with (
-            patch(
-                "cloud_engineer_mcp.discovery.shutil.which", return_value="/usr/bin/az"
-            ),
+            patch("cloud_engineer_mcp.discovery.shutil.which", return_value="/usr/bin/az"),
             patch(
                 "cloud_engineer_mcp.discovery.asyncio.create_subprocess_exec",
                 return_value=mock_proc,
@@ -240,9 +236,7 @@ class TestDiscoverAzureSubscriptions:
         mock_proc.returncode = 0
 
         with (
-            patch(
-                "cloud_engineer_mcp.discovery.shutil.which", return_value="/usr/bin/az"
-            ),
+            patch("cloud_engineer_mcp.discovery.shutil.which", return_value="/usr/bin/az"),
             patch(
                 "cloud_engineer_mcp.discovery.asyncio.create_subprocess_exec",
                 return_value=mock_proc,
@@ -267,9 +261,7 @@ class TestDiscoverAzureSubscriptions:
         mock_proc.returncode = 1
 
         with (
-            patch(
-                "cloud_engineer_mcp.discovery.shutil.which", return_value="/usr/bin/az"
-            ),
+            patch("cloud_engineer_mcp.discovery.shutil.which", return_value="/usr/bin/az"),
             patch(
                 "cloud_engineer_mcp.discovery._validate_azure_credentials",
                 return_value=True,
@@ -286,9 +278,7 @@ class TestDiscoverAzureSubscriptions:
     @pytest.mark.asyncio
     async def test_invalid_credentials_returns_empty(self) -> None:
         with (
-            patch(
-                "cloud_engineer_mcp.discovery.shutil.which", return_value="/usr/bin/az"
-            ),
+            patch("cloud_engineer_mcp.discovery.shutil.which", return_value="/usr/bin/az"),
             patch(
                 "cloud_engineer_mcp.discovery._validate_azure_credentials",
                 return_value=False,
@@ -409,7 +399,8 @@ class TestDiscoverAllCredentialError:
             patch(
                 "cloud_engineer_mcp.discovery._validate_aws_credentials",
                 side_effect=always_invalid,
-            ),pytest.raises(CredentialError) as exc_info
+            ),
+            pytest.raises(CredentialError) as exc_info,
         ):
             await discover_all(config, require_credentials=True)
 
@@ -455,6 +446,97 @@ class TestDiscoverAllCredentialError:
             results = await discover_all(config, require_credentials=False)
 
         assert results == []
+
+
+KUBECTL_CONTEXTS = "prod-cluster\nstaging-cluster\ndev-laptop\n"
+
+
+class TestDiscoverKubernetes:
+    @pytest.mark.asyncio
+    async def test_parses_contexts(self) -> None:
+        from cloud_engineer_mcp.discovery import discover_kubernetes_contexts
+
+        mock_proc = AsyncMock()
+        mock_proc.communicate.return_value = (KUBECTL_CONTEXTS.encode(), b"")
+        mock_proc.returncode = 0
+
+        with (
+            patch(
+                "cloud_engineer_mcp.discovery.shutil.which",
+                return_value="/usr/local/bin/kubectl",
+            ),
+            patch(
+                "cloud_engineer_mcp.discovery.asyncio.create_subprocess_exec",
+                return_value=mock_proc,
+            ),
+        ):
+            ctxs = await discover_kubernetes_contexts()
+
+        assert len(ctxs) == 3
+        names = [c.profile_id for c in ctxs]
+        assert "prod-cluster" in names
+        assert "dev-laptop" in names
+        assert all(c.provider == "kubernetes" for c in ctxs)
+
+    @pytest.mark.asyncio
+    async def test_exclude_contexts(self) -> None:
+        from cloud_engineer_mcp.discovery import discover_kubernetes_contexts
+
+        mock_proc = AsyncMock()
+        mock_proc.communicate.return_value = (KUBECTL_CONTEXTS.encode(), b"")
+        mock_proc.returncode = 0
+
+        with (
+            patch(
+                "cloud_engineer_mcp.discovery.shutil.which",
+                return_value="/usr/local/bin/kubectl",
+            ),
+            patch(
+                "cloud_engineer_mcp.discovery.asyncio.create_subprocess_exec",
+                return_value=mock_proc,
+            ),
+        ):
+            ctxs = await discover_kubernetes_contexts(exclude_contexts=["dev-laptop"])
+
+        assert {c.profile_id for c in ctxs} == {"prod-cluster", "staging-cluster"}
+
+    @pytest.mark.asyncio
+    async def test_kubectl_not_installed(self) -> None:
+        from cloud_engineer_mcp.discovery import discover_kubernetes_contexts
+
+        with patch("cloud_engineer_mcp.discovery.shutil.which", return_value=None):
+            ctxs = await discover_kubernetes_contexts()
+
+        assert ctxs == []
+
+
+class TestTokenGatedProviders:
+    def test_cloudflare_account_when_set(self) -> None:
+        from cloud_engineer_mcp.discovery import cloudflare_account_if_configured
+
+        with patch.dict("os.environ", {"CLOUDFLARE_API_TOKEN": "tok"}, clear=False):
+            acct = cloudflare_account_if_configured("CLOUDFLARE_API_TOKEN")
+
+        assert acct is not None
+        assert acct.provider == "cloudflare"
+        assert acct.env_vars["CLOUDFLARE_API_TOKEN"] == "tok"
+
+    def test_cloudflare_account_when_unset(self) -> None:
+        from cloud_engineer_mcp.discovery import cloudflare_account_if_configured
+
+        with patch.dict("os.environ", {}, clear=True):
+            acct = cloudflare_account_if_configured("CLOUDFLARE_API_TOKEN")
+
+        assert acct is None
+
+    def test_digitalocean_account_when_set(self) -> None:
+        from cloud_engineer_mcp.discovery import digitalocean_account_if_configured
+
+        with patch.dict("os.environ", {"DIGITALOCEAN_TOKEN": "do-tok"}, clear=False):
+            acct = digitalocean_account_if_configured("DIGITALOCEAN_TOKEN")
+
+        assert acct is not None
+        assert acct.provider == "digitalocean"
 
 
 class TestExpandBackends:
@@ -572,15 +654,116 @@ class TestExpandBackends:
         assert len(backends) == 1
         assert "my_backend" in backends
 
+    def test_aws_extra_servers_spawn_per_profile(self) -> None:
+        discovered = [
+            DiscoveredAccount(
+                "aws",
+                "prod",
+                "AWS (prod)",
+                {"AWS_PROFILE": "prod", "AWS_REGION": "us-east-1"},
+            ),
+            DiscoveredAccount(
+                "aws",
+                "staging",
+                "AWS (staging)",
+                {"AWS_PROFILE": "staging", "AWS_REGION": "us-east-1"},
+            ),
+        ]
+        from cloud_engineer_mcp.config import AWSDiscoveryConfig
+
+        config = DiscoveryConfig(
+            aws=AWSDiscoveryConfig(
+                extra_servers=[
+                    "awslabs.lambda-tool-mcp-server@latest",
+                    "awslabs.dynamodb-mcp-server@latest",
+                ],
+            ),
+        )
+        backends = expand_backends(discovered, config, {})
+
+        # primary + 2 extras × 2 profiles = 6 backends
+        aws_backends = [bid for bid in backends if bid.startswith("aws_")]
+        assert len(aws_backends) == 6
+        # Spot-check the tags
+        assert any("lambda" in bid for bid in aws_backends)
+        assert any("dynamodb" in bid for bid in aws_backends)
+        # Display names should attribute each extra
+        lambda_backend = next((b for bid, b in backends.items() if "lambda" in bid), None)
+        assert lambda_backend is not None
+        assert "lambda" in lambda_backend.display_name.lower()
+
+    def test_aws_extra_servers_empty_keeps_one_per_profile(self) -> None:
+        discovered = [
+            DiscoveredAccount(
+                "aws",
+                "prod",
+                "AWS (prod)",
+                {"AWS_PROFILE": "prod"},
+            ),
+        ]
+        config = DiscoveryConfig()  # extra_servers defaults to []
+        backends = expand_backends(discovered, config, {})
+        aws_backends = [bid for bid in backends if bid.startswith("aws_")]
+        assert len(aws_backends) == 1
+
+    def test_aws_server_tag(self) -> None:
+        from cloud_engineer_mcp.discovery import _aws_server_tag
+
+        assert _aws_server_tag("awslabs.lambda-tool-mcp-server@latest") == "lambda"
+        assert _aws_server_tag("awslabs.dynamodb-mcp-server") == "dynamodb"
+        assert _aws_server_tag("awslabs.bedrock-kb-retrieval-mcp-server@latest") == "bedrock_kb"
+
+    def test_expands_kubernetes(self) -> None:
+        discovered = [
+            DiscoveredAccount(
+                "kubernetes",
+                "prod-cluster",
+                "Kubernetes (prod-cluster)",
+                {"KUBE_CONTEXT": "prod-cluster"},
+            ),
+            DiscoveredAccount(
+                "kubernetes",
+                "staging-cluster",
+                "Kubernetes (staging-cluster)",
+                {"KUBE_CONTEXT": "staging-cluster"},
+            ),
+        ]
+        config = DiscoveryConfig()
+        backends = expand_backends(discovered, config, {})
+        ids = list(backends.keys())
+        assert any(i.startswith("k8s_") for i in ids)
+        assert len([i for i in ids if i.startswith("k8s_")]) == 2
+
+    def test_expands_cloudflare_single(self) -> None:
+        discovered = [
+            DiscoveredAccount(
+                "cloudflare",
+                "default",
+                "Cloudflare",
+                {"CLOUDFLARE_API_TOKEN": "x"},
+            ),
+        ]
+        backends = expand_backends(discovered, DiscoveryConfig(), {})
+        assert "cloudflare" in backends
+        assert backends["cloudflare"].env["CLOUDFLARE_API_TOKEN"] == "x"
+
+    def test_expands_digitalocean_single(self) -> None:
+        discovered = [
+            DiscoveredAccount(
+                "digitalocean",
+                "default",
+                "DigitalOcean",
+                {"DIGITALOCEAN_TOKEN": "x"},
+            ),
+        ]
+        backends = expand_backends(discovered, DiscoveryConfig(), {})
+        assert "digitalocean" in backends
+
     def test_mixed_providers(self) -> None:
         discovered = [
             DiscoveredAccount("aws", "prod", "AWS (prod)", {"AWS_PROFILE": "prod"}),
-            DiscoveredAccount(
-                "azure", "sub1", "Azure (sub1)", {"AZURE_SUBSCRIPTION_ID": "sub1"}
-            ),
-            DiscoveredAccount(
-                "gcp", "proj1", "GCP (proj1)", {"GCLOUD_PROJECT": "proj1"}
-            ),
+            DiscoveredAccount("azure", "sub1", "Azure (sub1)", {"AZURE_SUBSCRIPTION_ID": "sub1"}),
+            DiscoveredAccount("gcp", "proj1", "GCP (proj1)", {"GCLOUD_PROJECT": "proj1"}),
         ]
         config = DiscoveryConfig()
         backends = expand_backends(discovered, config, {})

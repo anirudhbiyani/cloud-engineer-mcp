@@ -1,0 +1,21 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cloud-engineer-mcp-flyio"
+version = "0.1.0"
+description = "Reference Fly.io backend plugin for cloud-engineer-mcp."
+requires-python = ">=3.12"
+dependencies = [
+    "cloud-engineer-mcp",
+]
+
+# This is the line that makes the plugin discoverable. The key ("fly") is the
+# plugin name; the value is "<importable module>:<attribute>" where the
+# attribute satisfies the BackendProvider protocol.
+[project.entry-points."cloud_engineer_mcp.backend_providers"]
+fly = "cloud_engineer_mcp_flyio:FlyBackendProvider"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cloud_engineer_mcp_flyio"]

@@ -1,0 +1,100 @@
+name: Bug report
+description: Something is broken or behaves unexpectedly.
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please include enough info
+        that we can reproduce it without going back and forth.
+
+        ⚠ If this is a security issue, please follow [SECURITY.md](../blob/main/SECURITY.md) instead of opening a public issue.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+      placeholder: When I do X, Y happens. I expected Z.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps that trigger the bug on a clean install.
+      placeholder: |
+        1. git clone https://github.com/cloud-engineer-mcp/cloud-engineer-mcp.git && cd cloud-engineer-mcp && uv sync
+        2. uv run cloud-engineer-mcp demo
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: |
+        Paste any error output or relevant log lines. The gateway logs to
+        stderr as JSON. Run with `--log-level DEBUG` for more detail.
+      render: shell
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `cloud-engineer-mcp --version`
+      placeholder: cloud-engineer-mcp, version 1.0.0
+    validations:
+      required: true
+
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      placeholder: 3.12.x
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: OS
+      options:
+        - macOS
+        - Linux
+        - Windows
+        - Docker
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: transport
+    attributes:
+      label: Transport
+      options:
+        - stdio
+        - http
+        - demo
+        - n/a
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Redacted config
+      description: |
+        Output of `cloud-engineer-mcp check` is usually enough. If you paste
+        config.yml, strip secrets first.
+      render: yaml
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Code of Conduct
+      options:
+        - label: I agree to follow this project's [Code of Conduct](../blob/main/CODE_OF_CONDUCT.md).
+          required: true

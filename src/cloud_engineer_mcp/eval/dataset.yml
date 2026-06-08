@@ -1,0 +1,265 @@
+# cloud-engineer-mcp selector eval set
+#
+# Each case is (query, expected_tool, [optional: action, resource_type, providers]).
+# expected_tool can be a single namespaced name or a list (any match counts).
+#
+# Edit freely. PRs that change selector behavior must keep Recall@15 ≥ baseline.
+# Cases below cover the common workflows we expect the gateway to handle well:
+# - direct verb+noun queries
+# - paraphrased intent
+# - cross-provider phrasing
+# - vague intent
+# - intent with explicit provider filter
+#
+# When adding new cases: prefer real prompts you've seen from agents.
+
+- query: "Deploy an S3 bucket with versioning"
+  expected: ["aws_prod__create_bucket", "aws_prod__create_resource"]
+
+- query: "List my S3 buckets"
+  expected: aws_prod__list_buckets
+
+- query: "Delete the S3 bucket called demo-logs"
+  expected: ["aws_prod__delete_bucket", "aws_prod__delete_resource"]
+
+- query: "Download an object from S3"
+  expected: aws_prod__get_object
+
+- query: "Upload a file to S3"
+  expected: aws_prod__put_object
+
+- query: "Show me my Lambda functions"
+  expected: aws_prod__list_lambda_functions
+
+- query: "Deploy my Lambda from a zip file"
+  expected: aws_prod__deploy_lambda
+
+- query: "Run my Lambda function"
+  expected: aws_prod__invoke_lambda
+
+- query: "Create a DynamoDB table with on-demand capacity"
+  expected: aws_prod__create_dynamodb_table
+
+- query: "Insert an item into my DynamoDB table"
+  expected: aws_prod__put_dynamodb_item
+
+- query: "Start my EC2 instance"
+  expected: aws_prod__start_ec2_instance
+
+- query: "Stop the EC2 box"
+  expected: aws_prod__stop_ec2_instance
+
+- query: "What instances do I have running on AWS?"
+  expected: aws_prod__list_ec2_instances
+  providers: [aws]
+
+- query: "I need to create an IAM role for my Lambda"
+  expected: aws_prod__create_iam_role
+
+- query: "Attach S3 read access to this role"
+  expected: aws_prod__attach_iam_policy
+
+- query: "List my RDS databases"
+  expected: aws_prod__list_rds_databases
+
+- query: "Plot CPU usage of an EC2 instance"
+  expected: ["aws_prod__get_cloudwatch_metric", "aws_prod__list_cloudwatch_metrics"]
+
+# ---- Azure ----
+- query: "Create an Azure storage account"
+  expected: az_prod__create_storage_account
+  providers: [azure]
+
+- query: "List my Azure blob storage"
+  expected: ["az_prod__list_storage_accounts", "az_prod__list_blobs"]
+  providers: [azure]
+
+- query: "Upload a blob to Azure"
+  expected: az_prod__upload_blob
+
+- query: "Show me my Azure VMs"
+  expected: az_prod__list_vms
+
+- query: "Spin up a new Azure VM"
+  expected: az_prod__create_vm
+
+- query: "Stop my Azure VM"
+  expected: az_prod__stop_vm
+
+- query: "Deploy code to an Azure function"
+  expected: az_prod__deploy_function_app
+
+- query: "Query my Cosmos DB container"
+  expected: az_prod__query_cosmos_container
+
+- query: "Create a new Azure resource group"
+  expected: az_prod__create_resource_group
+
+- query: "Get kubeconfig for my AKS cluster"
+  expected: az_prod__get_aks_credentials
+
+- query: "List Azure AD users"
+  expected: az_prod__list_ad_users
+
+# ---- GCP ----
+- query: "List my GCS buckets"
+  expected: gcp__list_buckets
+
+- query: "Create a GCS bucket in us-central1"
+  expected: gcp__create_bucket
+
+- query: "Show all my Compute Engine instances"
+  expected: gcp__list_compute_instances
+
+- query: "Spin up a new GCE VM"
+  expected: gcp__create_compute_instance
+
+- query: "Run a BigQuery query"
+  expected: gcp__run_bigquery_query
+
+- query: "List my BigQuery datasets"
+  expected: gcp__list_bigquery_datasets
+
+- query: "Deploy a Cloud Function"
+  expected: gcp__deploy_cloud_function
+
+- query: "Deploy a container to Cloud Run"
+  expected: gcp__deploy_cloud_run
+
+- query: "List my GKE clusters"
+  expected: gcp__list_gke_clusters
+
+- query: "Get kubeconfig for my GKE cluster"
+  expected: gcp__get_gke_credentials
+
+- query: "Create a Pub/Sub topic"
+  expected: ["gcp__list_pubsub_topics", "gcp__publish_pubsub_message"]
+
+- query: "Publish a message to Pub/Sub"
+  expected: gcp__publish_pubsub_message
+
+- query: "Create a GCP service account"
+  expected: gcp__create_service_account
+
+# ---- Cross-cloud / structured-intent cases ----
+- query: "I want to host a static site"
+  expected:
+    - aws_prod__create_bucket
+    - gcp__create_bucket
+    - az_prod__create_storage_account
+
+- query: "Deploy a containerized app"
+  expected:
+    - gcp__deploy_cloud_run
+    - aws_prod__deploy_lambda
+    - az_prod__deploy_app_service
+
+- query: "Run a database query"
+  expected:
+    - gcp__run_bigquery_query
+    - az_prod__query_cosmos_container
+    - aws_prod__query_dynamodb
+
+# Structured intent: explicit action+resource should disambiguate
+- query: "I need to manage this resource"
+  action: create
+  resource_type: s3 bucket
+  expected: aws_prod__create_bucket
+
+- query: "I need to manage this resource"
+  action: list
+  resource_type: gke clusters
+  expected: gcp__list_gke_clusters
+
+- query: "Manage compute"
+  action: stop
+  resource_type: azure vm
+  expected: az_prod__stop_vm
+
+# ---- Kubernetes ----
+- query: "Show pods in my prod cluster"
+  expected: k8s_prod__list_pods
+
+- query: "Get logs from my failing pod"
+  expected: k8s_prod__get_logs
+
+- query: "Restart the deployment"
+  expected: k8s_prod__rollout_restart
+
+- query: "Install a helm chart"
+  expected: k8s_prod__helm_install
+
+- query: "Scale my deployment to 5 replicas"
+  expected: k8s_prod__scale_deployment
+
+- query: "Apply this YAML to the cluster"
+  expected: k8s_prod__apply_manifest
+
+# ---- Cloudflare ----
+- query: "Deploy my Cloudflare Worker"
+  expected: cloudflare__deploy_worker
+
+- query: "Add an A record to my DNS"
+  expected: cloudflare__create_dns_record
+
+- query: "Purge the Cloudflare cache for my site"
+  expected: cloudflare__purge_cache
+
+- query: "List my R2 buckets"
+  expected: cloudflare__list_r2_buckets
+
+# ---- DigitalOcean ----
+- query: "Spin up a new DigitalOcean droplet"
+  expected: digitalocean__create_droplet
+
+- query: "List my DO droplets"
+  expected: digitalocean__list_droplets
+
+- query: "List my managed kubernetes clusters on DigitalOcean"
+  expected: digitalocean__list_k8s_clusters
+
+# ---- Azure DevOps ----
+- query: "List PRs in my Azure DevOps repo"
+  expected: ado_main__list_pull_requests
+
+- query: "Open a new pull request in ADO"
+  expected: ado_main__create_pull_request
+
+- query: "Run my Azure DevOps pipeline"
+  expected: ado_main__run_pipeline
+
+- query: "Show work items assigned to me"
+  expected: ado_main__list_work_items
+
+# ---- GitHub remote ----
+- query: "List PRs on my repo"
+  expected:
+    - gh_remote__list_pull_requests
+    - ado_main__list_pull_requests
+
+- query: "Open a GitHub pull request"
+  expected: gh_remote__create_pull_request
+
+- query: "Trigger a GitHub Actions workflow"
+  expected: gh_remote__run_workflow
+
+# ---- Documentation lookups ----
+- query: "Search Microsoft Azure documentation"
+  expected: mslearn__search_docs
+
+- query: "Look up AWS documentation"
+  expected: aws_kb__search_docs
+
+# ---- GCP managed remote MCPs ----
+- query: "Run a BigQuery query via the managed endpoint"
+  expected:
+    - gcp_rem_bq__run_query
+    - gcp__run_bigquery_query
+
+- query: "List GKE clusters using the managed remote API"
+  expected:
+    - gcp_rem_gke__list_clusters
+    - gcp__list_gke_clusters
+
+- query: "Tail logs from Cloud Logging"
+  expected: gcp_rem_logging__query_logs
