@@ -5,35 +5,69 @@ build-backend = "hatchling.build"
 [project]
 name = "cloud-engineer-mcp"
 version = "1.0.0"
-description = "Unified Multi-Cloud MCP Gateway Server"
+description = "One MCP endpoint for AWS, Azure, and GCP — without context bloat."
 readme = "README.md"
-requires-python = ">=3.14"
-license = "MIT"
+requires-python = ">=3.12"
+license = "AGPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [{ name = "cloud-engineer-mcp contributors" }]
+keywords = ["mcp", "model-context-protocol", "aws", "azure", "gcp", "cloud", "ai", "agents", "cursor"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Systems Administration",
+]
 dependencies = [
-    "mcp>=1.27.0",
-    "sentence-transformers>=3.4.0",
-    "numpy>=2.2.0",
-    "pyyaml>=6.0",
-    "pydantic>=2.10.0",
-    "structlog>=24.4.0",
-    "uvicorn>=0.34.0",
-    "starlette>=0.45.0",
-    "click>=8.1.0",
+    "mcp>=1.27.2",
+    "sentence-transformers>=5.5.1",
+    "numpy>=2.4.6",
+    "pyyaml>=6.0.3",
+    "pydantic>=2.13.4",
+    "structlog>=26.1.0",
+    "uvicorn>=0.49.0",
+    "starlette>=1.2.1",
+    "click>=8.4.1",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.3.0",
-    "pytest-asyncio>=0.24.0",
-    "pytest-cov>=6.0",
-    "pytest-timeout>=2.3.0",
-    "ruff>=0.8.0",
-    "mypy>=1.14.0",
+    "pytest>=9.0.3",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "pytest-timeout>=2.4.0",
+    "httpx>=0.28.1",
+    "ruff>=0.15.16",
+    "mypy>=2.1.0",
+    "types-PyYAML>=6.0.12.20260518",
 ]
-all = ["cloud-engineer-mcp[dev]"]
+otel = [
+    "opentelemetry-api>=1.42.1",
+    "opentelemetry-sdk>=1.42.1",
+    "opentelemetry-exporter-otlp>=1.42.1",
+]
+all = ["cloud-engineer-mcp[dev,otel]"]
+
+[project.urls]
+Homepage = "https://github.com/cloud-engineer-mcp/cloud-engineer-mcp"
+Repository = "https://github.com/cloud-engineer-mcp/cloud-engineer-mcp"
+Issues = "https://github.com/cloud-engineer-mcp/cloud-engineer-mcp/issues"
+Changelog = "https://github.com/cloud-engineer-mcp/cloud-engineer-mcp/blob/main/CHANGELOG.md"
 
 [project.scripts]
 cloud-engineer-mcp = "cloud_engineer_mcp.cli:cli"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cloud_engineer_mcp"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/cloud_engineer_mcp/eval/dataset.yml" = "cloud_engineer_mcp/eval/dataset.yml"
 
 [tool.ruff]
 target-version = "py312"
@@ -45,6 +79,13 @@ select = ["E", "F", "W", "I", "N", "UP", "B", "A", "SIM"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
+
+# The opentelemetry SDK is an optional extra; the tracing module imports it
+# inside a function and tolerates ImportError. Treat its modules as untyped
+# rather than failing the strict check.
+[[tool.mypy.overrides]]
+module = "opentelemetry.*"
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

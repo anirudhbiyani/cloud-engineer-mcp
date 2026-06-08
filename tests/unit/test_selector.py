@@ -159,3 +159,27 @@ class TestIndexCache:
         index2 = ToolIndex(engine, min_similarity=0.0)
         loaded = index2.load_cache(cache_path, ["aws__different_name"])
         assert loaded is False
+
+    def test_cache_invalidated_on_version_mismatch(self, tmp_path, monkeypatch) -> None:
+        import numpy as np
+
+        from cloud_engineer_mcp.selector import index as index_mod
+
+        engine = FakeEngine()
+        index = ToolIndex(engine, min_similarity=0.0)
+        refs = [_make_ref("create", "aws", "Create resource")]
+        index.build(refs)
+
+        cache_path = str(tmp_path / "cache.npz")
+        # Write a cache file with the wrong version stamp.
+        np.savez_compressed(
+            tmp_path / "cache.npz",
+            version=np.array([index_mod.CACHE_VERSION - 1], dtype=np.int32),
+            matrix=np.zeros((1, 8), dtype=np.float32),
+            names=np.array(["aws__create"]),
+            backend_ids=np.array(["aws"]),
+        )
+
+        index2 = ToolIndex(engine, min_similarity=0.0)
+        loaded = index2.load_cache(cache_path, ["aws__create"])
+        assert loaded is False

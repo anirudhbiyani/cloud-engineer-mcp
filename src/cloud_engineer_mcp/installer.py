@@ -24,16 +24,17 @@ class InstalledBackend:
     runtime: str  # "uv" or "npm"
 
 
-def _load_manifest() -> dict[str, dict]:
+def _load_manifest() -> dict[str, dict[str, str]]:
     if MANIFEST_FILE.exists():
         try:
-            return json.loads(MANIFEST_FILE.read_text())
+            data: dict[str, dict[str, str]] = json.loads(MANIFEST_FILE.read_text())
+            return data
         except (json.JSONDecodeError, OSError):
             pass
     return {}
 
 
-def _save_manifest(manifest: dict[str, dict]) -> None:
+def _save_manifest(manifest: dict[str, dict[str, str]]) -> None:
     INSTALL_DIR.mkdir(parents=True, exist_ok=True)
     MANIFEST_FILE.write_text(json.dumps(manifest, indent=2) + "\n")
 
@@ -149,6 +150,6 @@ def get_installed_binary(package: str) -> str | None:
     entry = manifest.get(package)
     if entry:
         binary = entry.get("binary", "")
-        if Path(binary).exists():
+        if binary and Path(binary).exists():
             return binary
     return None

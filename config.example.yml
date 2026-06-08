@@ -9,12 +9,17 @@ server:
       enabled: true
     http:
       enabled: true
-      # WARNING: The HTTP transport has no built-in authentication.
-      # Use "127.0.0.1" (default) for local-only access.
-      # Only change to "0.0.0.0" behind a reverse proxy with auth.
+      # SECURITY:
+      #  - host "127.0.0.1" (loopback) is the only safe default.
+      #  - To expose this off-host, set CLOUD_ENGINEER_MCP_AUTH_TOKEN in the
+      #    environment AND put the service behind TLS (e.g. reverse proxy).
+      #    The gateway will refuse to bind to a non-loopback host without a
+      #    token set.
       host: "127.0.0.1"
       port: 8080
-      cors_origins: ["*"]
+      # CORS: leave empty for local development. If you must expose the gateway
+      # to a browser-based client, list the exact origin(s) — never use "*".
+      cors_origins: []
 
 selector:
   model_name: "all-MiniLM-L6-v2"
@@ -43,7 +48,18 @@ discovery:
   aws:
     enabled: true
     default_region: "us-east-1"
-    mcp_server: "awslabs.ccapi-mcp-server@latest"
+    # Primary AWS MCP server, started per discovered profile.
+    # awslabs.aws-iac-mcp-server covers CloudFormation + CDK + Cloud Control.
+    # (Replaces the deprecated awslabs.ccapi-mcp-server.)
+    mcp_server: "awslabs.aws-iac-mcp-server@latest"
+    # Optional specialized AWS Labs servers to spawn in ADDITION to the
+    # primary one, also one per profile. Common picks shown commented out.
+    # See docs/AWS-EXTRAS.md for the full catalog.
+    extra_servers: []
+    #  - "awslabs.lambda-tool-mcp-server@latest"
+    #  - "awslabs.dynamodb-mcp-server@latest"
+    #  - "awslabs.bedrock-kb-retrieval-mcp-server@latest"
+    #  - "awslabs.aws-documentation-mcp-server@latest"
     exclude_profiles: []
     startup_timeout_seconds: 60
   azure:
@@ -56,6 +72,85 @@ discovery:
     mcp_server: "@google-cloud/gcloud-mcp@latest"
     exclude_projects: []
     startup_timeout_seconds: 60
+  # Kubernetes: one backend per kubeconfig context. Off by default; flip
+  # `enabled: true` once you've installed kubectl and configured ~/.kube/config.
+  # Kubernetes: one backend per kubeconfig context. Default is the
+  # Red Hat-backed Go-native server (single binary, no Node/kubectl needed).
+  # Swap to "npx -y mcp-server-kubernetes@latest" for the Node-based variant.
+  kubernetes:
+    enabled: false
+    mcp_command: "npx -y kubernetes-mcp-server@latest"
+    exclude_contexts: []
+    kubeconfig_path: null
+    startup_timeout_seconds: 60
+  # Cloudflare: single backend authenticated via env-var API token.
+  cloudflare:
+    enabled: false
+    mcp_command: "npx -y @cloudflare/mcp-server-cloudflare@latest"
+    token_env: "CLOUDFLARE_API_TOKEN"
+    startup_timeout_seconds: 60
+  # DigitalOcean: single backend authenticated via env-var token.
+  digitalocean:
+    enabled: false
+    mcp_command: "npx -y @digitalocean/mcp-server@latest"
+    token_env: "DIGITALOCEAN_TOKEN"
+    startup_timeout_seconds: 60
+  # Azure DevOps: one backend per organization. Uses your `az login` auth.
+  # Set `organizations` to the ADO org slugs you want to expose.
+  azure_devops:
+    enabled: false
+    mcp_command: "npx -y @azure-devops/mcp@latest"
+    organizations: []
+    # example:
+    # organizations:
+    #   - "my-ado-org"
+    #   - "another-org"
+    startup_timeout_seconds: 60
+  # Playwright: single backend exposing browser-interaction tools. Useful
+  # when an agent needs to test or scrape a web UI from a cloud workflow.
+  playwright:
+    enabled: false
+    mcp_command: "npx -y @playwright/mcp@latest"
+    startup_timeout_seconds: 60
+  # ---------- Remote (HTTPS) MCP integrations ----------
+  # GitHub's hosted MCP. Needs a personal access token in GITHUB_TOKEN.
+  github_remote:
+    enabled: false
+    url: "https://api.githubcopilot.com/mcp"
+    token_env: "GITHUB_TOKEN"
+    startup_timeout_seconds: 30
+  # Microsoft Learn MCP — anonymous documentation lookup over learn.microsoft.com.
+  microsoft_learn:
+    enabled: false
+    url: "https://learn.microsoft.com/api/mcp"
+    startup_timeout_seconds: 30
+  # AWS Knowledge MCP — anonymous AWS docs/API reference.
+  aws_knowledge:
+    enabled: false
+    url: "https://knowledge-mcp.global.api.aws"
+    startup_timeout_seconds: 30
+  # AWS managed-MCP proxy — broad AWS API support behind one remote endpoint.
+  # Anonymous today; set token_env when AWS adds auth.
+  aws_managed:
+    enabled: false
+    url: "https://aws-mcp.us-east-1.api.aws/mcp"
+    token_env: null
+    startup_timeout_seconds: 30
+  # Google Cloud managed MCP servers (~40 endpoints). Pick the ones you want
+  # and list them here. Token is minted via `gcloud auth print-access-token`
+  # at gateway startup unless you override token_command or set token_env.
+  gcp_remote:
+    enabled: false
+    token_command: ["gcloud", "auth", "print-access-token"]
+    token_env: null
+    services: []
+    # example:
+    # services:
+    #   - { name: "bigquery", url: "https://bigquery.googleapis.com/mcp" }
+    #   - { name: "gke",      url: "https://container.googleapis.com/mcp" }
+    #   - { name: "storage",  url: "https://storage.googleapis.com/storage/mcp" }
+    #   - { name: "logging",  url: "https://logging.googleapis.com/mcp" }
+    startup_timeout_seconds: 30
 
 # Manual backends override discovered ones on name collision.
 # Use this to add backends that can't be auto-discovered, or to override
@@ -86,3 +181,51 @@ health:
 rate_limit:
   enabled: true
   requests_per_minute: 100
+
+# Optional cross-restart session persistence. Off by default. When enabled the
+# gateway periodically dumps active session state to a JSON file and reloads
+# it at startup. Useful for HTTP/multi-client deployments where you don't want
+# to lose conversation context across restarts.
+sessions:
+  persist: false
+  persist_path: ".cloud-engineer-mcp/sessions.json"
+  persist_interval_seconds: 30.0
+  ttl_seconds: 3600
+
+# Per-tool policy: allow/deny + dry-run + per-tool rate limits + audit log.
+# Off by default. Patterns are fnmatch globs over the namespaced tool name
+# (e.g. `aws_prod__delete_resource`). Deny is evaluated before allow.
+#
+# Example: only allow read operations during business-critical windows.
+#
+#   policy:
+#     enabled: true
+#     dry_run: false
+#     deny:
+#       - "*__delete_*"
+#       - "*__terminate_*"
+#     allow: []                    # empty = allow anything not denied
+#     rate_limits:
+#       - { pattern: "*__create_*", per_minute: 5 }
+#       - { pattern: "aws_prod*",   per_minute: 30 }
+#     audit:
+#       enabled: true
+#       path: ".cloud-engineer-mcp/audit.log"
+policy:
+  enabled: false
+  dry_run: false
+  deny: []
+  allow: []
+  rate_limits: []
+  audit:
+    enabled: false
+    path: ".cloud-engineer-mcp/audit.log"
+
+# Streaming progress for long-running tool calls. When the client sends a
+# progressToken in the request meta, the gateway forwards backend progress
+# notifications and emits "still working" heartbeats every
+# heartbeat_interval_seconds. Set heartbeat_interval_seconds to 0 to disable.
+streaming:
+  enabled: true
+  passthrough: true
+  heartbeat_interval_seconds: 5.0

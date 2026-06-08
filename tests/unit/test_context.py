@@ -49,6 +49,24 @@ class TestContextExtractor:
         )
         assert "aws ccapi" in query.lower() or "create resource" in query.lower()
 
+    def test_structured_intent_added_and_repeated(self) -> None:
+        query = self.extractor.extract_query(
+            user_message="Help me",
+            action="create",
+            resource_type="s3 bucket",
+        )
+        # action+resource appear twice (up-weighted) plus the user message once.
+        assert query.count("create s3 bucket") == 2
+        assert "Help me" in query
+
+    def test_structured_intent_only_action(self) -> None:
+        query = self.extractor.extract_query(
+            user_message="anything",
+            action="describe",
+        )
+        # No resource_type, so only action is in the intent string.
+        assert query.startswith("describe describe")
+
     def test_combined_all_sources(self) -> None:
         query = self.extractor.extract_query(
             user_message="Deploy infrastructure",

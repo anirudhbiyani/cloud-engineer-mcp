@@ -1,0 +1,15 @@
+{
+  "_comment": "Drop this into .cursor/mcp.json in your project, or ~/.cursor/mcp.json for all projects. Edit the absolute path to your config.yml. Or run: cloud-engineer-mcp cursor-install",
+  "mcpServers": {
+    "cloud-engineer-mcp": {
+      "command": "cloud-engineer-mcp",
+      "args": [
+        "serve",
+        "--config",
+        "/ABSOLUTE/PATH/TO/config.yml",
+        "--transport",
+        "stdio"
+      ]
+    }
+  }
+}

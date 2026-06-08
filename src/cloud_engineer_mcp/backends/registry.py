@@ -28,12 +28,34 @@ class ToolRef:
 
 def build_embedding_text(backend_id: str, display_name: str, tool: Tool) -> str:
     """Build a rich text string for embedding that includes provider context."""
-    if backend_id.startswith("aws"):
+    # Order matters: longer/more specific prefixes first so e.g. "ado_" wins
+    # over "az" for Azure DevOps backends.
+    if backend_id.startswith("ado_"):
+        provider = "Azure DevOps"
+    elif backend_id.startswith("aws_kb"):
+        provider = "AWS Documentation"
+    elif backend_id.startswith("aws_rem"):
+        provider = "AWS (managed)"
+    elif backend_id.startswith("aws"):
         provider = "AWS"
     elif backend_id.startswith("az"):
         provider = "Azure"
+    elif backend_id.startswith("gcp_rem"):
+        provider = "Google Cloud (managed)"
     elif backend_id.startswith("gcp"):
         provider = "Google Cloud"
+    elif backend_id.startswith("gh_remote"):
+        provider = "GitHub"
+    elif backend_id.startswith("mslearn"):
+        provider = "Microsoft Learn"
+    elif backend_id.startswith("k8s"):
+        provider = "Kubernetes"
+    elif backend_id.startswith("cloudflare"):
+        provider = "Cloudflare"
+    elif backend_id.startswith("digitalocean"):
+        provider = "DigitalOcean"
+    elif backend_id.startswith("playwright"):
+        provider = "Playwright"
     else:
         provider = backend_id
     return f"[{provider} - {display_name}] {tool.name}: {tool.description or ''}"

@@ -22,13 +22,36 @@ def generate_fake_refs(n: int) -> list[ToolRef]:
 
     providers = ["aws", "azure", "gcp"]
     services = [
-        "s3", "ec2", "lambda", "dynamodb", "rds", "sqs", "sns",
-        "storage", "compute", "functions", "cosmos", "sql",
-        "gcs", "bigquery", "gke", "pubsub", "dataflow",
+        "s3",
+        "ec2",
+        "lambda",
+        "dynamodb",
+        "rds",
+        "sqs",
+        "sns",
+        "storage",
+        "compute",
+        "functions",
+        "cosmos",
+        "sql",
+        "gcs",
+        "bigquery",
+        "gke",
+        "pubsub",
+        "dataflow",
     ]
     actions = [
-        "create", "delete", "list", "get", "update", "describe",
-        "start", "stop", "configure", "deploy", "monitor",
+        "create",
+        "delete",
+        "list",
+        "get",
+        "update",
+        "describe",
+        "start",
+        "stop",
+        "configure",
+        "deploy",
+        "monitor",
     ]
 
     refs = []

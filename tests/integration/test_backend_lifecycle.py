@@ -22,6 +22,8 @@ def _mock_backend_config(**overrides) -> BackendConfig:
         "enabled": True,
         "startup_timeout_seconds": 30,
         "max_restarts": 2,
+        # Skip restart backoff in tests so they stay fast.
+        "restart_backoff_base_seconds": 0.0,
     }
     defaults.update(overrides)
     return BackendConfig(**defaults)

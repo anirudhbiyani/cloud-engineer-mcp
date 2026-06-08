@@ -1,0 +1,33 @@
+name: Feature request
+description: Suggest an improvement or new capability.
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's the problem?
+      description: What can't you do today, or what's awkward?
+      placeholder: When I try to ..., I have to ... because ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would you like the gateway to do?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you've thought about, and why you'd prefer this one.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: |
+        Links, related issues, prior art in other projects, etc.

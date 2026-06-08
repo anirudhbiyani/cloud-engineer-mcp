@@ -52,3 +52,25 @@ class CredentialError(CloudEngineerError):
         if details:
             msg += f". {details}"
         super().__init__(msg)
+
+
+class PolicyDeniedError(CloudEngineerError):
+    """A policy explicitly denied the tool call."""
+
+    def __init__(self, tool_name: str, reason: str) -> None:
+        self.tool_name = tool_name
+        self.reason = reason
+        super().__init__(f"Tool call '{tool_name}' denied by policy: {reason}")
+
+
+class PolicyRateLimitedError(CloudEngineerError):
+    """A per-tool rate limit was exceeded."""
+
+    def __init__(self, tool_name: str, pattern: str, per_minute: int) -> None:
+        self.tool_name = tool_name
+        self.pattern = pattern
+        self.per_minute = per_minute
+        super().__init__(
+            f"Tool call '{tool_name}' rate-limited by policy "
+            f"(pattern={pattern!r}, limit={per_minute}/min)"
+        )
